@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MR32 Number Player</title>
 
@@ -66,14 +67,8 @@ header{
         0 0 6px rgba(255,50,50,.6),
         0 0 14px rgba(255,50,50,.4);
 }
-
-.blink{
-    animation:blink 1s steps(1) infinite;
-}
-
-@keyframes blink{
-    50%{opacity:0.3;}
-}
+.blink{ animation:blink 1s steps(1) infinite; }
+@keyframes blink{ 50%{opacity:.3;} }
 /* ================= */
 
 input[type="file"]{
@@ -95,11 +90,7 @@ button{
     font-size:16px;
     cursor:pointer;
 }
-
-button:active{
-    background:#2b3138;
-    color:#fff;
-}
+button:active{ background:#2b3138; color:#fff; }
 
 /* ===== KEYPAD ===== */
 .keypad{
@@ -108,7 +99,6 @@ button:active{
     gap:10px;
     margin-top:12px;
 }
-
 .keypad button{
     aspect-ratio:1/1;
     font-size:22px;
@@ -116,14 +106,31 @@ button:active{
 }
 /* ================= */
 
+.controls{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:10px;
+}
+
+.toggle{
+    background:#161a1e;
+    border:1px solid var(--border);
+    padding:14px;
+    text-align:center;
+    font-weight:bold;
+    cursor:pointer;
+    user-select:none;
+}
+.toggle.on{
+    color:var(--accent);
+    box-shadow:0 0 10px rgba(46,199,255,.4);
+}
+
 .volume{
     display:flex;
     align-items:center;
     gap:10px;
-}
-
-.volume input{
-    width:100%;
 }
 
 audio{
@@ -146,9 +153,7 @@ audio{
         grid-template-columns:1fr 1fr;
         gap:14px;
     }
-    .full{
-        grid-column:1 / -1;
-    }
+    .full{ grid-column:1 / -1; }
 }
 </style>
 </head>
@@ -185,6 +190,11 @@ audio{
         <button onclick="playByNumber()">PLAY</button>
     </div>
 
+    <div class="controls">
+        <div id="loopBtn" class="toggle" onclick="toggleLoop()">LOOP OFF</div>
+        <div class="toggle" onclick="stop()">STOP</div>
+    </div>
+
     <div class="status" id="playStatus"></div>
 </div>
 
@@ -199,7 +209,7 @@ audio{
 
 <div class="panel full">
     <div class="panel-title">PLAYER</div>
-    <audio id="player" controls onpause="stopBlink()" onended="stopBlink()"></audio>
+    <audio id="player" controls></audio>
 </div>
 
 </div>
@@ -207,9 +217,11 @@ audio{
 <script>
 let db;
 let current="";
+let loop=false;
 
 const display=document.getElementById("display");
 const player=document.getElementById("player");
+const loopBtn=document.getElementById("loopBtn");
 
 const req=indexedDB.open("MR32DB",1);
 req.onupgradeneeded=e=>{
@@ -274,23 +286,30 @@ function playByNumber(){
             return;
         }
         player.src=e.target.result.data;
+        player.loop=loop;
         player.play();
         startBlink();
         document.getElementById("playStatus").textContent="PLAYING : "+id;
     };
 }
 
-function startBlink(){
-    display.classList.add("blink");
+function toggleLoop(){
+    loop=!loop;
+    player.loop=loop;
+    loopBtn.textContent=loop?"LOOP ON":"LOOP OFF";
+    loopBtn.classList.toggle("on",loop);
 }
 
-function stopBlink(){
-    display.classList.remove("blink");
+function stop(){
+    player.pause();
+    player.currentTime=0;
+    stopBlink();
 }
 
-function setVolume(v){
-    player.volume=v/100;
-}
+function startBlink(){ display.classList.add("blink"); }
+function stopBlink(){ display.classList.remove("blink"); }
+
+function setVolume(v){ player.volume=v/100; }
 </script>
 
 </body>
