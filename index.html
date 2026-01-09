@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MR32 Number Player</title>
+
+<style>
+:root{
+    --bg:#1b1f23;
+    --panel:#252a30;
+    --border:#3a4047;
+    --accent:#2ec7ff;
+    --seg:#ff3b3b;
+    --text:#e0e0e0;
+    --dim:#9aa0a6;
+}
+
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Segoe UI",sans-serif;
+}
+
+header{
+    background:#121417;
+    padding:12px 16px;
+    border-bottom:1px solid var(--border);
+    font-weight:bold;
+    text-align:center;
+}
+
+.container{
+    max-width:600px;
+    margin:auto;
+    padding:12px;
+}
+
+.panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    padding:14px;
+    margin-bottom:14px;
+}
+
+.panel-title{
+    color:var(--accent);
+    font-size:13px;
+    margin-bottom:6px;
+    letter-spacing:1px;
+}
+
+/* ===== 7 SEG ===== */
+.display{
+    background:#000;
+    border:2px solid #400;
+    text-align:center;
+    font-size:clamp(36px, 8vw, 48px);
+    font-family:"Courier New", monospace;
+    color:var(--seg);
+    letter-spacing:0.2em;
+    padding:10px 0;
+    text-shadow:
+        0 0 6px rgba(255,50,50,.6),
+        0 0 14px rgba(255,50,50,.4);
+}
+
+.blink{
+    animation:blink 1s steps(1) infinite;
+}
+
+@keyframes blink{
+    50%{opacity:0.3;}
+}
+/* ================= */
+
+input[type="file"]{
+    width:100%;
+    background:#161a1e;
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:8px;
+    font-size:16px;
+}
+
+button{
+    width:100%;
+    background:#1f2429;
+    border:1px solid var(--border);
+    color:var(--accent);
+    padding:14px;
+    margin-top:8px;
+    font-size:16px;
+    cursor:pointer;
+}
+
+button:active{
+    background:#2b3138;
+    color:#fff;
+}
+
+/* ===== KEYPAD ===== */
+.keypad{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-top:12px;
+}
+
+.keypad button{
+    aspect-ratio:1/1;
+    font-size:22px;
+    padding:0;
+}
+/* ================= */
+
+.volume{
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.volume input{
+    width:100%;
+}
+
+audio{
+    width:100%;
+    margin-top:8px;
+}
+
+.status{
+    font-family:monospace;
+    color:var(--dim);
+    margin-top:6px;
+    text-align:center;
+}
+
+/* ===== Tablet landscape ===== */
+@media (min-width:900px){
+    .container{
+        max-width:900px;
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:14px;
+    }
+    .full{
+        grid-column:1 / -1;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>MR32 STYLE / NUMBER PLAYER</header>
+
+<div class="container">
+
+<div class="panel">
+    <div class="panel-title">UPLOAD</div>
+    <input type="file" id="file" accept="audio/*">
+    <button onclick="addSong()">ADD TRACK</button>
+    <div class="status" id="uploadStatus"></div>
+</div>
+
+<div class="panel">
+    <div class="panel-title">NUMBER</div>
+    <div id="display" class="display">00000</div>
+
+    <div class="keypad">
+        <button onclick="key('1')">1</button>
+        <button onclick="key('2')">2</button>
+        <button onclick="key('3')">3</button>
+        <button onclick="key('4')">4</button>
+        <button onclick="key('5')">5</button>
+        <button onclick="key('6')">6</button>
+        <button onclick="key('7')">7</button>
+        <button onclick="key('8')">8</button>
+        <button onclick="key('9')">9</button>
+        <button onclick="clearNum()">CLR</button>
+        <button onclick="key('0')">0</button>
+        <button onclick="playByNumber()">PLAY</button>
+    </div>
+
+    <div class="status" id="playStatus"></div>
+</div>
+
+<div class="panel full">
+    <div class="panel-title">VOLUME</div>
+    <div class="volume">
+        <span>-</span>
+        <input type="range" min="0" max="100" value="80" oninput="setVolume(this.value)">
+        <span>+</span>
+    </div>
+</div>
+
+<div class="panel full">
+    <div class="panel-title">PLAYER</div>
+    <audio id="player" controls onpause="stopBlink()" onended="stopBlink()"></audio>
+</div>
+
+</div>
+
+<script>
+let db;
+let current="";
+
+const display=document.getElementById("display");
+const player=document.getElementById("player");
+
+const req=indexedDB.open("MR32DB",1);
+req.onupgradeneeded=e=>{
+    db=e.target.result;
+    db.createObjectStore("songs",{keyPath:"id"});
+    db.createObjectStore("meta",{keyPath:"key"});
+};
+req.onsuccess=e=>{
+    db=e.target.result;
+    initCounter();
+};
+
+function initCounter(){
+    const tx=db.transaction("meta","readwrite");
+    const m=tx.objectStore("meta");
+    m.get("counter").onsuccess=e=>{
+        if(!e.target.result)m.put({key:"counter",value:1});
+    };
+}
+
+function pad5(n){return n.toString().padStart(5,"0");}
+
+function addSong(){
+    const f=document.getElementById("file").files[0];
+    if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{
+        const tx=db.transaction(["songs","meta"],"readwrite");
+        const m=tx.objectStore("meta");
+        m.get("counter").onsuccess=e=>{
+            const n=e.target.result.value;
+            m.put({key:"counter",value:n+1});
+            tx.objectStore("songs").add({id:pad5(n),data:r.result});
+            document.getElementById("uploadStatus").textContent="ADDED : "+pad5(n);
+        };
+    };
+    r.readAsDataURL(f);
+}
+
+function key(k){
+    if(current.length>=5)return;
+    current+=k;
+    updateDisplay();
+}
+
+function clearNum(){
+    current="";
+    updateDisplay();
+}
+
+function updateDisplay(){
+    display.textContent=current.padStart(5,"0");
+}
+
+function playByNumber(){
+    const id=current.padStart(5,"0");
+    const tx=db.transaction("songs","readonly");
+    tx.objectStore("songs").get(id).onsuccess=e=>{
+        if(!e.target.result){
+            document.getElementById("playStatus").textContent="NOT FOUND";
+            stopBlink();
+            return;
+        }
+        player.src=e.target.result.data;
+        player.play();
+        startBlink();
+        document.getElementById("playStatus").textContent="PLAYING : "+id;
+    };
+}
+
+function startBlink(){
+    display.classList.add("blink");
+}
+
+function stopBlink(){
+    display.classList.remove("blink");
+}
+
+function setVolume(v){
+    player.volume=v/100;
+}
+</script>
+
+</body>
+</html>
